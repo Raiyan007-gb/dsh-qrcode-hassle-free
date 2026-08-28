@@ -8,6 +8,9 @@ chat, no typing.
 No Firebase. No database. No app install. Nothing is saved anywhere: the
 tunnel URL is random per run and the QR is printed fresh each time.
 
+Works on **Windows, macOS, and Linux** — the only runtime requirements are
+`dsh`, Node (which dsh already needs), and `cloudflared` on PATH.
+
 ## What it does
 
 On every `dsh web` start the bundle:
@@ -53,19 +56,52 @@ DSH Mobile — scan to open the harness on your phone:
 ──────────────────────────────────────────────────────────────
 ```
 
-## Requirements
+## Install (all platforms)
 
-- `cloudflared` on PATH (`winget install Cloudflare.cloudflared`)
-- Phone on any network — the tunnel is public; the token in the URL is the
-  only gate, so treat printed links like passwords.
+The traditional dsh way: bundles are plain npm packages with a
+`dsh.bundle` manifest, installed into a profile with the `dsh plugin`
+CLI (which forwards to pnpm). No build step — the package ships plain ESM.
 
-## Install
+Prerequisite: install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+(`winget install Cloudflare.cloudflared` on Windows, `brew install cloudflared`
+on macOS, or the `.deb`/binary from the download page on Linux) and make sure
+`dsh web` has been run once so the profile exists.
 
-Run `install.ps1` (copies the bundle into the dsh web profile and registers it
-in the profile's bundle list), then restart `dsh web`.
+From the parent directory of the checkout (or any directory, using the git
+URL directly):
+
+```sh
+dsh plugin --profile web add https://github.com/Raiyan007-gb/dsh-mobile-handoff.git
+```
+
+That single command initializes the profile if needed, links the package,
+installs `qrcode-terminal`, and registers the bundle. For a local checkout
+instead:
+
+```sh
+git clone https://github.com/Raiyan007-gb/dsh-mobile-handoff
+dsh plugin --profile web add ./dsh-mobile-handoff
+```
+
+> **Security note:** installing from a git URL asks for permission to run the
+> package's install scripts on your machine. This package has none (plain ESM,
+> no `postinstall`), but pin a commit — `#<sha>` suffix on the URL — if you
+> want to freeze what runs. The alternative is `pnpm pack` a tarball and
+> `dsh plugin add ./qrcode-hassle-free-1.0.0.tgz`, which needs no build
+> permission at all.
+
+Then **restart `dsh web`** — the QR prints on every start.
 
 ## Removing
 
-Delete the bundle rows from `C:\Users\<you>\.dsh\profiles\web\package.json`
-(both `dependencies` and `dsh.profile.bundles`), remove
-`node_modules\qrcode-hassle-free`, and restart `dsh web`.
+```sh
+dsh plugin --profile web remove qrcode-hassle-free
+```
+
+and restart `dsh web`.
+
+## Requirements
+
+- `cloudflared` on PATH
+- Phone on any network — the tunnel is public; the token in the URL is the
+  only gate, so treat printed links like passwords.
