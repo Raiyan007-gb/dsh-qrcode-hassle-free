@@ -53,8 +53,13 @@ exists.
 The simplest path — install from the npm registry with the plugin name:
 
 ```sh
-dsh plugin --profile web add qrcode-hassle-free
+dsh plugin --profile web add qrcode-hassle-free@latest --config.minimumReleaseAge=0
 ```
+
+The `--config.minimumReleaseAge=0` flag bypasses pnpm's ~24-hour release-age
+gate, so a freshly published version installs immediately. Without it, a plain
+`dsh plugin --profile web add qrcode-hassle-free` still works but may hold off
+until the freshness window lapses.
 
 Or, if you prefer, install straight from the GitHub repository URL:
 
