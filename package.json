@@ -1,17 +1,20 @@
 {
   "name": "qrcode-hassle-free",
-  "version": "1.1.1",
-  "description": "Remote hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. No database, no Firebase.",
+  "version": "1.2.0",
+  "description": "Remote hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. Zero runtime dependencies, no database, no Firebase.",
   "type": "module",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
     "./client": "./lib/client.js",
+    "./cloudflared": "./lib/cloudflared.js",
     "./package.json": "./package.json"
   },
   "files": [
     "index.js",
     "lib/client.js",
+    "lib/cloudflared.js",
+    "lib/qrcode.js",
     "cordis.patch.yml",
     "README.md",
     "assets/logo.svg"
@@ -28,9 +31,7 @@
     "remote"
   ],
   "license": "MIT",
-  "dependencies": {
-    "qrcode-terminal": "^0.12.0"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6"
   },

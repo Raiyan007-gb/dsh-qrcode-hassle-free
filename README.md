@@ -27,9 +27,11 @@ database, no Firebase, no app install.
 
 - **Scan to open** — a real QR code in **Settings → Plugins**, fresh every run
 - **Same session** — the phone lands inside the chat and workspace you are already in
+- **Self-installing** — detects `cloudflared`, and downloads it (SHA-256 verified) when missing
+- **Regenerate** — one click mints a fresh tunnel URL for the same session, without restarting
 - **Editable settings** — tunnel target, `cloudflared` path, and session handoff from the page
 - **Nothing stored** — the tunnel URL is random per run; nothing is saved anywhere
-- **Everywhere** — Windows, macOS, and Linux
+- **Everywhere** — Windows (x64/x86), macOS (Intel/Apple Silicon), and Linux (x64/arm64)
 
 ## At a Glance
 
@@ -39,16 +41,19 @@ database, no Firebase, no app install.
 | **Who is it for?** | Anyone running `dsh web` who wants their phone on the same session without typing tunnel URLs and tokens. |
 | **What do I get?** | A loopback edge proxy, a `cloudflared` quick tunnel, same-session handoff, and a live QR + settings card in **Settings → Plugins**. |
 | **What does it run on?** | Windows, macOS, and Linux — anything `dsh` runs on. |
-| **Is cloud required?** | No. Only `cloudflared` on `PATH` is needed; the tunnel is public, and the token in the link is the gate. |
+| **Is cloud required?** | No account or signup. `cloudflared` is used, and auto-downloaded on first run when missing; the tunnel is public, and the token in the link is the gate. |
 
 ---
 
 ## Get Started
 
-Prerequisite: install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-(`winget install Cloudflare.cloudflared` on Windows, `brew install cloudflared`
-on macOS, or the `.deb`/binary on Linux) and run `dsh web` once so a profile
-exists.
+Run `dsh web` once so a profile exists — that is the only prerequisite.
+`cloudflared` is no longer something you install by hand: on first tunnel start
+the bundle probes your `PATH`, and when no `cloudflared` is found it downloads
+the official pinned binary (SHA-256 verified), caches it under your user cache
+directory, and reuses it from then on. Prefer your own install? Put it on
+`PATH`, or set the **cloudflared path** field in the card to an absolute path —
+an explicit path disables both probing and downloading.
 
 The simplest path — install from the npm registry with the plugin name:
 
@@ -74,9 +79,10 @@ git clone https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free
 dsh plugin --profile web add ./dsh-qrcode-hassle-free
 ```
 
-These initialize the profile if needed, link the package, install
-`qrcode-terminal`, and register the bundle. No build step — the package ships
-plain ESM.
+These initialize the profile if needed, link the package, and register the
+bundle. No build step — the package ships plain ESM with **zero runtime
+dependencies** (the QR encoder and cloudflared resolver are vendored in-tree),
+so `add` and `remove` stay fast and never run install scripts.
 
 > **Security note:** installing from a git URL asks for permission to run the
 > package's install scripts. This package has none (plain ESM, no
@@ -100,7 +106,10 @@ On every `dsh web` start the bundle:
    `Origin == Host`, and a phone's `Origin` is the tunnel hostname, which
    `--http-host-header` rewriting alone can never satisfy. Without the proxy
    the app loads but every API call 403s.
-2. Spawns `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:<proxy-port>`
+2. Locates `cloudflared` — the configured **cloudflared path** override, else a
+   binary on `PATH`, else a pinned download (`2026.8.2`) SHA-256 verified and
+   cached under the user cache directory. It then spawns
+   `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:<proxy-port>`
    pointed at that proxy.
 3. Waits for cloudflared to print the random `https://<name>.trycloudflare.com` URL.
 4. Resolves this process's launch token via the harness connection service
@@ -117,14 +126,19 @@ On every `dsh web` start the bundle:
    (`/api/dsh-remote-handoff-settings`). The card in **Settings → Plugins →
    DSH Remote** reads the tunnel status (QR matrix + access link) from that
    bridge and draws them in the page, alongside the editable `tunnelTarget` /
-   `cloudflaredPath` / `sessionHandoff` settings. The `dsh web` terminal prints
-   nothing.
+   `cloudflaredPath` / `sessionHandoff` settings. The **Regenerate** button
+   restarts the tunnel in place for a brand-new URL on the same session, and an
+   empty **tunnel target** auto-fills the harness's own loopback address. The
+   `dsh web` terminal prints nothing.
 
 ---
 
 ## Requirements
 
-- `cloudflared` on `PATH`
+- No manual `cloudflared` install — downloaded automatically when missing
+  (Windows x64/x86, macOS Intel/Apple Silicon, Linux x64/arm64); any other
+  platform needs a `cloudflared` on `PATH` or an explicit **cloudflared path**.
+- Network access on first run (to reach GitHub for the binary download)
 - Node — already present where `dsh` runs
 - Phone on any network — the tunnel is public; the token in the URL is the only
   gate, so treat the shown link like a password.

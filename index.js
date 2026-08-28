@@ -47,6 +47,8 @@
 
 import { installSettingsSection, settingsNamespace, SettingsConflictError } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
+import { resolveCloudflared } from './lib/cloudflared.js'
+import { encodeQrMatrix } from './lib/qrcode.js'
 
 const TOKEN_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i
 const HANDOFF_PATH = '/remote-handoff'
@@ -59,14 +61,18 @@ const SESSION_REFRESH_MS = 15_000
 
 /**
  * Bundle config schema. The same object the Settings page edits: `tunnelTarget`
- * is the local harness the quick tunnel forwards to, `cloudflaredPath` names the
- * cloudflared binary, and `sessionHandoff` gates the token-gated handoff route
- * and index seed. The QR/link it emits is never printed to the terminal — the
- * browser card fetches it from the loopback bridge and draws the matrix.
+ * is the local harness the quick tunnel forwards to (empty means "auto" — the
+ * running webserver's loopback URL), `cloudflaredPath` names the cloudflared
+ * binary (empty means "probe PATH, else auto-download"; any non-empty value is
+ * an override that disables both), `autoInstallCloudflared` gates the lazy
+ * download, and `sessionHandoff` gates the token-gated handoff route and index
+ * seed. The QR/link it emits is never printed to the terminal — the browser
+ * card fetches it from the loopback bridge and draws the matrix.
  */
 const Config = z.object({
-  tunnelTarget: z.string().default('http://localhost:3080'),
-  cloudflaredPath: z.string().default('cloudflared'),
+  tunnelTarget: z.string().default(''),
+  cloudflaredPath: z.string().default(''),
+  autoInstallCloudflared: z.boolean().default(true),
   sessionHandoff: z.boolean().default(true),
 })
 
@@ -76,6 +82,17 @@ function launchToken(connection) {
   return new URL(authenticated).searchParams.get('token') ?? ''
 }
 
+/**
+ * Resolve the tunnel upstream from config: an explicit `tunnelTarget` wins,
+ * otherwise the running webserver's canonical loopback URL. `webServer` port
+ * is the same source `web-app` uses for its own `dsh web` URL, so the auto
+ * value can never drift from where the harness actually listens.
+ */
+function resolveTarget(config, webServer) {
+  if (typeof config.tunnelTarget === 'string' && config.tunnelTarget !== '') return config.tunnelTarget
+  return `http://127.0.0.1:${String(webServer.port)}`
+}
+
 function apply(ctx, config) {
   // The live settings source: composition `config` until a settings provider
   // attaches, then its resolved scope (see installSettingsSection below).
@@ -83,7 +100,17 @@ function apply(ctx, config) {
 
   // Tunnel status shared with the loopback bridge. The browser card polls
   // /status to draw the QR and link; nothing is ever written to the terminal.
-  const status = { state: 'starting', tunnelUrl: null, accessUrl: null, matrix: null, error: null }
+  const status = {
+    state: 'starting',
+    tunnelUrl: null,
+    accessUrl: null,
+    matrix: null,
+    error: null,
+    phase: null,
+    resolvedTarget: null,
+  }
+  /** Registered regenerate handler; replaced by the tunnel effect once ready. */
+  let regenerate = null
 
   installSettingsSection(ctx, REMOTE_HANDOFF_NS, Config, config ?? {}, {
     setSource: (source) => { current = source },
@@ -92,33 +119,78 @@ function apply(ctx, config) {
 
   ctx.inject(['webServer', 'settings'], (sctx) => {
     sctx.effect(() => {
-      const disposers = makeBridgeRoutes(sctx.settings, () => status).map((route) => sctx.webServer.register(route))
+      const disposers = makeBridgeRoutes(sctx.settings, () => status, () => regenerate).map((route) => sctx.webServer.register(route))
       return () => { disposers.forEach((dispose) => dispose()) }
     }, 'qrcode-hassle-free: settings + status bridge')
   })
 
   ctx.effect(() => {
-    // startTunnel resolves asynchronously (the edge proxy binds first); track
-    // its disposer whenever it lands, and dispose immediately when it lands
-    // after teardown — no orphaned proxy or cloudflared child either way.
     // Resolve the startup config once: tunnel target, cloudflared path, and the
     // handoff switch are read when the tunnel/handoff/seed registrations begin,
     // matching the original startup-time semantics. Live settings edits update
-    // `current` for the bridge, but do not restart an already-running tunnel.
+    // `current` for the bridge, but do not restart an already-running tunnel
+    // (an explicit "Regenerate" is the only restart trigger).
     const startup = current()
     const disposers = [registerHandoff(ctx, startup), registerIndexSeed(ctx, startup)]
     let torn = false
-    const track = (disposer) => {
-      if (torn) disposer()
-      else disposers.push(disposer)
+    let active = null
+    let inFlight = false
+
+    const resetStatus = () => {
+      status.state = 'starting'
+      status.tunnelUrl = null
+      status.accessUrl = null
+      status.matrix = null
+      status.error = null
     }
-    void startTunnel(ctx, startup, status).then(track).catch((err) => {
+
+    const resolveBinary = async () => {
+      status.phase = 'downloading cloudflared…'
+      return resolveCloudflared(startup, (phase) => { status.phase = phase })
+    }
+
+    // Start a tunnel to the resolved target using the resolved binary path.
+    const launch = async () => {
+      const target = resolveTarget(startup, ctx.webServer)
+      status.resolvedTarget = target
+      const binary = await resolveBinary().finally(() => { status.phase = null })
+      status.phase = 'starting tunnel…'
+      return startTunnel(ctx, { ...startup, tunnelTarget: target }, status, binary.path)
+    }
+
+    // Replace the live tunnel with a fresh one (regenerate). Safe against
+    // concurrent calls: a second request while one is in flight is rejected.
+    regenerate = async () => {
+      if (torn) return { ok: false, code: 'disposed', message: 'plugin is disposed' }
+      if (inFlight) return { ok: false, code: 'busy', message: 'already regenerating' }
+      inFlight = true
+      try {
+        if (active !== null) { active(); active = null }
+        resetStatus()
+        active = await launch()
+        return { ok: true, value: { state: 'starting' } }
+      } catch (err) {
+        status.state = 'failed'
+        status.phase = null
+        status.error = err instanceof Error ? err.message : String(err)
+        console.error(`qrcode-hassle-free: ${err.message}`)
+        return { ok: false, code: 'failed', message: status.error }
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void launch().then((disposer) => { active = disposer }).catch((err) => {
       status.state = 'failed'
+      status.phase = null
       status.error = err instanceof Error ? err.message : String(err)
       console.error(`qrcode-hassle-free: ${err.message}`)
     })
+
     return () => {
       torn = true
+      regenerate = null
+      if (active !== null) active()
       disposers.forEach((dispose) => { dispose() })
     }
   }, 'qrcode-hassle-free: tunnel + QR + session handoff')
@@ -183,8 +255,8 @@ function toView(descriptor) {
   }
 }
 
-/** Build the loopback-only bridge routes (settings describe/mutate + tunnel status). */
-function makeBridgeRoutes(settings, getStatus) {
+/** Build the loopback-only bridge routes (settings describe/mutate + tunnel status + regenerate). */
+function makeBridgeRoutes(settings, getStatus, getRegenerate) {
   const allowlisted = () =>
     settings
       .describe({ redactSecrets: true })
@@ -240,8 +312,17 @@ function makeBridgeRoutes(settings, getStatus) {
           ...(s.accessUrl === null ? {} : { accessUrl: s.accessUrl }),
           ...(s.matrix === null ? {} : { matrix: s.matrix }),
           ...(s.error === null ? {} : { error: s.error }),
+          ...(s.phase === null ? {} : { phase: s.phase }),
+          ...(s.resolvedTarget === null ? {} : { resolvedTarget: s.resolvedTarget }),
         },
       }
+    },
+    async regenerate() {
+      // Serialize through the effect's mutex; concurrent clicks fail with "busy".
+      if (typeof getRegenerate() !== 'function') {
+        return { ok: false, code: 'not-ready', message: 'regenerate is not available yet' }
+      }
+      return getRegenerate()()
     },
   }
 
@@ -287,33 +368,26 @@ function makeBridgeRoutes(settings, getStatus) {
         writeJson(res, 200, await handlers.status())
       },
     },
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/regenerate`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        writeJson(res, 200, await handlers.regenerate())
+      },
+    },
   ]
 }
 
 /**
- * Encode `text` into a QR matrix using the bundled qrcode-terminal vendor
- * encoder (Kazuhiko Arase qrcode-generator, MIT). Returns the module count and
- * a count×count grid of 0/1 cells the browser renders — nothing is drawn here.
- * The vendor is CJS with no `exports` map, so it loads through a `require`
- * anchored at this module (resolving from the owning profile's node_modules);
- * a bare ESM import would fail as an unsupported directory import.
+ * Encode `text` into a QR matrix using the vendored encoder (see lib/qrcode.js).
+ * Returns the module count and a count×count grid of 0/1 cells the browser
+ * renders — nothing is drawn here. The encoder is shipped in-tree so the QR
+ * step needs no runtime dependency (a `link:`/`file:` install cannot require a
+ * dependency package from inside the checkout).
  */
 function qrMatrix(text) {
-  const { createRequire } = process.getBuiltinModule('node:module')
-  const require = createRequire(import.meta.url)
-  const QRCode = require('qrcode-terminal/vendor/QRCode')
-  const level = require('qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel')
-  const qr = new QRCode(-1, level.L)
-  qr.addData(text)
-  qr.make()
-  const count = qr.getModuleCount()
-  const modules = []
-  for (let r = 0; r < count; r++) {
-    const row = []
-    for (let c = 0; c < count; c++) row.push(qr.isDark(r, c) ? 1 : 0)
-    modules.push(row)
-  }
-  return { count, modules }
+  return encodeQrMatrix(text)
 }
 
 /**
@@ -461,7 +535,7 @@ function registerIndexSeed(ctx, config) {
  * the sole remote client, and no LAN attacker can reach the rewrite without
  * first possessing the loopback boundary. WebSocket upgrades are piped raw
  * after the same header rewrite.
- * @param config - bundle config; uses `tunnelTarget` as the upstream.
+ * @param config - bundle config with `tunnelTarget` already resolved to the upstream.
  * @returns disposer closing the server, its sockets, and tracked upstreams.
  */
 function startEdgeProxy(config) {
@@ -542,10 +616,10 @@ function startEdgeProxy(config) {
  * quick tunnels live for the child's lifetime and the effect dies with the
  * plugin.
  */
-async function startTunnel(ctx, config, status) {
+async function startTunnel(ctx, config, status, cloudflaredBin) {
   const cp = process.getBuiltinModule('node:child_process')
   const upstream = await startEdgeProxy(config)
-  const child = cp.spawn(config.cloudflaredPath ?? 'cloudflared', [
+  const child = cp.spawn(cloudflaredBin, [
     'tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${String(upstream.port)}`,
   ], { windowsHide: true })
 
@@ -559,6 +633,7 @@ async function startTunnel(ctx, config, status) {
     // renders it inside the Settings card.
     const { count, modules } = await qrMatrix(accessUrl)
     status.state = 'ready'
+    status.phase = null
     status.tunnelUrl = tunnelUrl
     status.accessUrl = accessUrl
     status.matrix = { count, modules }

@@ -9,6 +9,4 @@
     - id: qrcode-hassle-free
       name: 'qrcode-hassle-free'
       config:
-        tunnelTarget: 'http://localhost:3080'
-        cloudflaredPath: 'cloudflared'
         sessionHandoff: true
