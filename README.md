@@ -1,12 +1,13 @@
 # qrcode-hassle-free
 
-A DSH web bundle that prints a **QR code and access link** to the `dsh web`
-terminal on every start. Scan it with your phone camera and the harness opens
-in the phone's browser — **inside your current session**, same workspace and
-chat, no typing.
+A DSH web bundle that shows a **QR code, access link, and settings** in the
+DeepSeek Harness **Settings → Plugins** page. Scan the QR with your phone
+camera and the harness opens in the phone's browser — **inside your current
+session**, same workspace and chat, no typing. The `dsh web` terminal prints
+nothing.
 
 No Firebase. No database. No app install. Nothing is saved anywhere: the
-tunnel URL is random per run and the QR is printed fresh each time.
+tunnel URL is random per run and the QR is generated fresh each time.
 
 Works on **Windows, macOS, and Linux** — the only runtime requirements are
 `dsh`, Node (which dsh already needs), and `cloudflared` on PATH.
@@ -41,20 +42,12 @@ On every `dsh web` start the bundle:
    route is guarded by the same launch token as the index (SHA-256
    constant-time compare). Prefix-matched so both `/mobile-handoff` and
    `/mobile-handoff/` work.
-7. Prints to the terminal:
-
-```
-──────────────────────────────────────────────────────────────
-DSH Mobile — scan to open the harness on your phone:
-(opens your current session — same workspace, same chat)
-
-  ▄▄▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄
-  █ ▄▄▄ █ █▀▄█ █ ▄▄▄ █      ← scannable QR
-  …
-
-  https://<random>.trycloudflare.com/mobile-handoff?token=…
-──────────────────────────────────────────────────────────────
-```
+7. Registers a `mobile-handoff` settings namespace and a loopback-only bridge
+   (`/api/dsh-mobile-handoff-settings`). The browser card in **Settings →
+   Plugins → DSH Mobile** reads the tunnel status (QR matrix + access link)
+   from that bridge and draws them in the page, alongside the editable
+   `tunnelTarget` / `cloudflaredPath` / `sessionHandoff` settings. The `dsh web`
+   terminal prints nothing.
 
 ## Install (all platforms)
 
@@ -90,7 +83,8 @@ dsh plugin --profile web add ./dsh-mobile-handoff
 > `dsh plugin add ./qrcode-hassle-free-1.0.0.tgz`, which needs no build
 > permission at all.
 
-Then **restart `dsh web`** — the QR prints on every start.
+Then **restart `dsh web`** — the QR and settings appear on the Settings →
+Plugins page on every start.
 
 ## Removing
 
@@ -104,4 +98,4 @@ and restart `dsh web`.
 
 - `cloudflared` on PATH
 - Phone on any network — the tunnel is public; the token in the URL is the
-  only gate, so treat printed links like passwords.
+  only gate, so treat the shown link like a password.

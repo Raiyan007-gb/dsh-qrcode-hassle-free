@@ -2,11 +2,17 @@
   "name": "qrcode-hassle-free",
   "version": "1.0.0",
   "private": true,
-  "description": "Prints a scannable QR code + cloudflared access link to the dsh web terminal on every start. No database, no Firebase.",
+  "description": "Mobile hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. No database, no Firebase.",
   "type": "module",
   "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
   "files": [
     "index.js",
+    "lib/client.js",
     "cordis.patch.yml",
     "README.md"
   ],
@@ -25,9 +31,19 @@
   "dependencies": {
     "qrcode-terminal": "^0.12.0"
   },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
     }
   }
 }

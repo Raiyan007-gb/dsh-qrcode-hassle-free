@@ -1,6 +1,6 @@
 /**
- * qrcode-hassle-free node half — tunnel + terminal QR + same-session handoff
- * for the DSH Web API.
+ * qrcode-hassle-free node half — tunnel + Settings-page QR + same-session
+ * handoff for the DSH Web API.
  *
  * On every start this bundle:
  *   1. spawns `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:<ephemeral>`
@@ -8,8 +8,10 @@
  *      spawns, forwarding every request and upgrade to the harness target,
  *   2. extracts the random trycloudflare.com URL from cloudflared's stderr,
  *   3. resolves this process's launch token through the connection service's
- *      authenticatedUrl (same mint the console line prints),
- *   4. prints the combined URL + a scannable QR code to the terminal,
+ *      authenticatedUrl,
+ *   4. computes the combined URL + a QR matrix and publishes them to a
+ *      loopback-only bridge the Settings page card renders — the dsh web
+ *      terminal prints nothing,
  *   5. seeds the harness's most recently active session into the served index
  *      page itself, so ANY entry path — the QR link, the handoff route, or a
  *      manually typed tunnel URL — lands inside the exact session the desktop
@@ -43,10 +45,30 @@
  * proxy, and the refresh timer.
  */
 
+import { installSettingsSection, settingsNamespace, SettingsConflictError } from '@deepseek-ai/dsh-settings'
+import z from '@deepseek-ai/schemastery'
+
 const TOKEN_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i
 const HANDOFF_PATH = '/mobile-handoff'
+/** Settings namespace the browser card edits (Settings → Plugins → configurable). */
+const MOBILE_HANDOFF_NS = settingsNamespace('mobile-handoff')
+/** Loopback-only HTTP bridge the card reads config + tunnel status through. */
+const BRIDGE_PREFIX = '/api/dsh-mobile-handoff-settings'
 /** How often the Host re-resolves the active session for index seeding. */
 const SESSION_REFRESH_MS = 15_000
+
+/**
+ * Bundle config schema. The same object the Settings page edits: `tunnelTarget`
+ * is the local harness the quick tunnel forwards to, `cloudflaredPath` names the
+ * cloudflared binary, and `sessionHandoff` gates the token-gated handoff route
+ * and index seed. The QR/link it emits is never printed to the terminal — the
+ * browser card fetches it from the loopback bridge and draws the matrix.
+ */
+const Config = z.object({
+  tunnelTarget: z.string().default('http://localhost:3080'),
+  cloudflaredPath: z.string().default('cloudflared'),
+  sessionHandoff: z.boolean().default(true),
+})
 
 /** Launch token of this process, extracted from the authenticated index URL. */
 function launchToken(connection) {
@@ -55,17 +77,44 @@ function launchToken(connection) {
 }
 
 function apply(ctx, config) {
+  // The live settings source: composition `config` until a settings provider
+  // attaches, then its resolved scope (see installSettingsSection below).
+  let current = () => config ?? {}
+
+  // Tunnel status shared with the loopback bridge. The browser card polls
+  // /status to draw the QR and link; nothing is ever written to the terminal.
+  const status = { state: 'starting', tunnelUrl: null, accessUrl: null, matrix: null, error: null }
+
+  installSettingsSection(ctx, MOBILE_HANDOFF_NS, Config, config ?? {}, {
+    setSource: (source) => { current = source },
+    onChange: () => {},
+  })
+
+  ctx.inject(['webServer', 'settings'], (sctx) => {
+    sctx.effect(() => {
+      const disposers = makeBridgeRoutes(sctx.settings, () => status).map((route) => sctx.webServer.register(route))
+      return () => { disposers.forEach((dispose) => dispose()) }
+    }, 'qrcode-hassle-free: settings + status bridge')
+  })
+
   ctx.effect(() => {
     // startTunnel resolves asynchronously (the edge proxy binds first); track
     // its disposer whenever it lands, and dispose immediately when it lands
     // after teardown — no orphaned proxy or cloudflared child either way.
-    const disposers = [registerHandoff(ctx, config), registerIndexSeed(ctx, config)]
+    // Resolve the startup config once: tunnel target, cloudflared path, and the
+    // handoff switch are read when the tunnel/handoff/seed registrations begin,
+    // matching the original startup-time semantics. Live settings edits update
+    // `current` for the bridge, but do not restart an already-running tunnel.
+    const startup = current()
+    const disposers = [registerHandoff(ctx, startup), registerIndexSeed(ctx, startup)]
     let torn = false
     const track = (disposer) => {
       if (torn) disposer()
       else disposers.push(disposer)
     }
-    void startTunnel(ctx, config).then(track).catch((err) => {
+    void startTunnel(ctx, startup, status).then(track).catch((err) => {
+      status.state = 'failed'
+      status.error = err instanceof Error ? err.message : String(err)
       console.error(`qrcode-hassle-free: ${err.message}`)
     })
     return () => {
@@ -73,6 +122,198 @@ function apply(ctx, config) {
       disposers.forEach((dispose) => { dispose() })
     }
   }, 'qrcode-hassle-free: tunnel + QR + session handoff')
+}
+
+const MAX_JSON_BODY_BYTES = 64 * 1024
+
+/** Only requests originating from this machine's loopback are served. */
+function isLoopbackRequest(request) {
+  const address = request.socket.remoteAddress
+  if (address !== '127.0.0.1' && address !== '::1' && address !== '::ffff:127.0.0.1') return false
+  const host = request.headers.host
+  if (typeof host !== 'string') return false
+  let hostUrl
+  try {
+    hostUrl = new URL('http://' + host)
+  } catch {
+    return false
+  }
+  if (hostUrl.hostname !== '127.0.0.1' && hostUrl.hostname !== 'localhost' && hostUrl.hostname !== '[::1]') return false
+  if (request.headers['sec-fetch-site'] === 'cross-site') return false
+  const origin = request.headers.origin
+  if (origin === undefined) return true
+  try {
+    return new URL(origin).host === hostUrl.host
+  } catch {
+    return false
+  }
+}
+
+function writeJson(res, statusCode, body) {
+  const payload = JSON.stringify(body)
+  res.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8', 'referrer-policy': 'no-referrer' })
+  res.end(payload)
+}
+
+async function readJsonBody(req) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    const buffer = chunk
+    size += buffer.length
+    if (size > MAX_JSON_BODY_BYTES) return undefined
+    chunks.push(buffer)
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return undefined
+  }
+}
+
+/** Project a settings descriptor to the wire view the card consumes. */
+function toView(descriptor) {
+  return {
+    ns: String(descriptor.ns),
+    schema: descriptor.schema,
+    value: descriptor.value,
+    ...(descriptor.base === undefined ? {} : { base: descriptor.base }),
+    ...(descriptor.user === undefined ? {} : { user: descriptor.user }),
+    revision: descriptor.revision,
+  }
+}
+
+/** Build the loopback-only bridge routes (settings describe/mutate + tunnel status). */
+function makeBridgeRoutes(settings, getStatus) {
+  const allowlisted = () =>
+    settings
+      .describe({ redactSecrets: true })
+      .filter((descriptor) => String(descriptor.ns) === String(MOBILE_HANDOFF_NS))
+      .map((descriptor) => String(descriptor.ns))
+
+  const handlers = {
+    async describe() {
+      const descriptors = settings.describe({ redactSecrets: true })
+      return {
+        ok: true,
+        value: {
+          namespaces: allowlisted()
+            .map((ns) => descriptors.find((descriptor) => String(descriptor.ns) === ns))
+            .filter((descriptor) => descriptor !== undefined)
+            .map(toView),
+          writable: settings.writable !== false,
+        },
+      }
+    },
+    async mutate(request) {
+      const body = request
+      if (body === null || typeof body !== 'object' || typeof body.ns !== 'string' || !Array.isArray(body.ops)) {
+        return { ok: false, code: 'settings-rejected', message: 'malformed bridge settings request' }
+      }
+      const { ns } = body
+      if (!allowlisted().includes(ns)) {
+        return { ok: false, code: 'settings-not-exposed', message: `settings namespace "${ns}" is not exposed` }
+      }
+      const expectedRevision = typeof body.expectedRevision === 'number' ? body.expectedRevision : undefined
+      try {
+        await settings.mutate(settingsNamespace(ns), body.ops, expectedRevision)
+      } catch (error) {
+        if (error instanceof SettingsConflictError) {
+          return { ok: false, code: 'settings-conflict', message: error.message }
+        }
+        const message = error instanceof Error ? error.message : String(error)
+        return { ok: false, code: 'internal', message }
+      }
+      const descriptor = settings.describe({ redactSecrets: true }).find((candidate) => String(candidate.ns) === ns)
+      if (descriptor === undefined) {
+        return { ok: false, code: 'internal', message: `settings namespace "${ns}" was disposed after the mutate` }
+      }
+      return { ok: true, value: toView(descriptor) }
+    },
+    async status() {
+      const s = getStatus()
+      return {
+        ok: true,
+        value: {
+          state: s.state,
+          ...(s.tunnelUrl === null ? {} : { tunnelUrl: s.tunnelUrl }),
+          ...(s.accessUrl === null ? {} : { accessUrl: s.accessUrl }),
+          ...(s.matrix === null ? {} : { matrix: s.matrix }),
+          ...(s.error === null ? {} : { error: s.error }),
+        },
+      }
+    },
+  }
+
+  const guard = (req, res) => {
+    if (!isLoopbackRequest(req)) {
+      writeJson(res, 403, { error: 'loopback requests only' })
+      return false
+    }
+    if (req.method !== 'POST') {
+      writeJson(res, 405, { error: `method not allowed: ${req.method ?? ''}` })
+      return false
+    }
+    return true
+  }
+
+  return [
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/describe`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        writeJson(res, 200, await handlers.describe())
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/mutate`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        const body = await readJsonBody(req)
+        if (body === undefined) {
+          writeJson(res, 400, { ok: false, code: 'settings-rejected', message: 'malformed JSON body' })
+          return
+        }
+        writeJson(res, 200, await handlers.mutate(body))
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/status`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        writeJson(res, 200, await handlers.status())
+      },
+    },
+  ]
+}
+
+/**
+ * Encode `text` into a QR matrix using the bundled qrcode-terminal vendor
+ * encoder (Kazuhiko Arase qrcode-generator, MIT). Returns the module count and
+ * a count×count grid of 0/1 cells the browser renders — nothing is drawn here.
+ * The vendor is CJS with no `exports` map, so it loads through a `require`
+ * anchored at this module (resolving from the owning profile's node_modules);
+ * a bare ESM import would fail as an unsupported directory import.
+ */
+function qrMatrix(text) {
+  const { createRequire } = process.getBuiltinModule('node:module')
+  const require = createRequire(import.meta.url)
+  const QRCode = require('qrcode-terminal/vendor/QRCode')
+  const level = require('qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel')
+  const qr = new QRCode(-1, level.L)
+  qr.addData(text)
+  qr.make()
+  const count = qr.getModuleCount()
+  const modules = []
+  for (let r = 0; r < count; r++) {
+    const row = []
+    for (let c = 0; c < count; c++) row.push(qr.isDark(r, c) ? 1 : 0)
+    modules.push(row)
+  }
+  return { count, modules }
 }
 
 /**
@@ -293,59 +534,60 @@ function startEdgeProxy(config) {
 }
 
 /**
- * Run cloudflared for the fiber's lifetime and print the QR once the random
- * URL appears on stderr. cloudflared points at the loopback edge proxy (not
- * the harness directly) so tunneled requests arrive fence-clean. Reconnect
- * loops are unnecessary: quick tunnels live for the child's lifetime and the
- * effect dies with the plugin.
+ * Run cloudflared for the fiber's lifetime and publish the QR matrix + link
+ * into the `status` store once the random URL appears on stderr. Nothing is
+ * printed to the terminal — the browser card reads /status and draws the QR.
+ * cloudflared points at the loopback edge proxy (not the harness directly) so
+ * tunneled requests arrive fence-clean. Reconnect loops are unnecessary:
+ * quick tunnels live for the child's lifetime and the effect dies with the
+ * plugin.
  */
-async function startTunnel(ctx, config) {
+async function startTunnel(ctx, config, status) {
   const cp = process.getBuiltinModule('node:child_process')
   const upstream = await startEdgeProxy(config)
   const child = cp.spawn(config.cloudflaredPath ?? 'cloudflared', [
     'tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${String(upstream.port)}`,
   ], { windowsHide: true })
 
-  let printed = false
+  let published = false
 
   const publish = async (tunnelUrl) => {
     const token = launchToken(ctx.connection) ?? ''
     const accessUrl = `${tunnelUrl}${HANDOFF_PATH}?token=${encodeURIComponent(token)}`
-    // Lazy-load the bundled qrcode-terminal so a tunnel failure never
-    // prevents the route tree from mounting. The package is CJS: generate
-    // lives on module.exports and reads `this.error`, so it must be invoked
-    // as a method of that record, never extracted and called unbound.
-    const mod = await import('qrcode-terminal')
-    const qrModule = mod.default ?? mod
-    console.log('')
-    console.log('─'.repeat(62))
-    console.log('DSH Mobile — scan to open the harness on your phone:')
-    console.log('(opens your current session — same workspace, same chat)')
-    console.log('')
-    qrModule.generate(accessUrl, { small: true }, (qr) => {
-      console.log(qr)
-      console.log(`  ${accessUrl}`)
-      console.log('─'.repeat(62))
-      console.log('')
-    })
+    // Lazy-load the bundled QR vendor so a tunnel failure never prevents the
+    // route tree from mounting. Only the matrix is computed here; the browser
+    // renders it inside the Settings card.
+    const { count, modules } = await qrMatrix(accessUrl)
+    status.state = 'ready'
+    status.tunnelUrl = tunnelUrl
+    status.accessUrl = accessUrl
+    status.matrix = { count, modules }
   }
 
   child.stderr.setEncoding('utf8')
   child.stderr.on('data', (chunk) => {
     const match = TOKEN_RE.exec(chunk)
-    if (match !== null && !printed) {
-      printed = true
+    if (match !== null && !published) {
+      published = true
       void publish(match[0]).catch((err) => {
+        status.state = 'failed'
+        status.error = err instanceof Error ? err.message : String(err)
         console.error(`qrcode-hassle-free: ${err.message}`)
       })
     }
   })
   child.on('exit', (code) => {
-    if (!printed) console.error(`qrcode-hassle-free: cloudflared exited early (code ${String(code)}) — no QR printed`)
+    if (!published) {
+      status.state = 'failed'
+      status.error = `cloudflared exited early (code ${String(code)}) — no tunnel URL`
+    }
   })
 
   const retry = setTimeout(() => {
-    if (!printed) console.error('qrcode-hassle-free: no tunnel URL after 60s — cloudflared may be offline')
+    if (!published) {
+      status.state = 'failed'
+      status.error = 'no tunnel URL after 60s — cloudflared may be offline'
+    }
   }, 60_000)
 
   return () => {
@@ -357,4 +599,4 @@ async function startTunnel(ctx, config) {
 
 export const name = 'qrcode-hassle-free'
 export const inject = ['webServer', 'connection', 'sessionController']
-export { apply, startEdgeProxy }
+export { apply, startEdgeProxy, Config }

@@ -1,8 +1,9 @@
-# Bundle patch for qrcode-hassle-free: prints the tunnel access link and its
-# QR code to the `dsh web` terminal on every start, and seeds the app's
-# persisted session selection so a phone scan lands in the harness's most
-# recently active session. No database, no Firebase, no persisted state —
-# the link is regenerated fresh each run.
+# Bundle patch for qrcode-hassle-free: starts a cloudflared quick tunnel and
+# publishes its access link and QR code to the Settings → Plugins page (the
+# `dsh web` terminal prints nothing), and seeds the app's persisted session
+# selection so a phone scan lands in the harness's most recently active
+# session. No database, no Firebase, no persisted state — the link is
+# regenerated fresh each run.
 
 - insert:
     - id: qrcode-hassle-free
