@@ -77,7 +77,7 @@ plain ESM.
 > package's install scripts. This package has none (plain ESM, no
 > `postinstall`), but pin a commit — `#<sha>` on the URL — to freeze what runs.
 > To skip install permissions entirely, `pnpm pack` a tarball and
-> `dsh plugin --profile web add ./qrcode-hassle-free-1.0.0.tgz`.
+> `dsh plugin --profile web add ./qrcode-hassle-free-1.1.0.tgz`.
 
 Then **restart** `dsh web` — the QR and settings appear on **Settings →
 Plugins → DSH Remote** on every start.
