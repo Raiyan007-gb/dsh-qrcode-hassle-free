@@ -1,6 +1,6 @@
 {
   "name": "qrcode-hassle-free",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Remote hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. No database, no Firebase.",
   "type": "module",
   "main": "index.js",
