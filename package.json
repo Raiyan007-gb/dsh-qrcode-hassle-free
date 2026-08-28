@@ -1,7 +1,7 @@
 {
   "name": "qrcode-hassle-free",
   "version": "1.0.1",
-  "description": "Mobile hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. No database, no Firebase.",
+  "description": "Remote hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. No database, no Firebase.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -24,7 +24,7 @@
     "dsh-bundle",
     "qrcode",
     "cloudflared",
-    "mobile"
+    "remote"
   ],
   "license": "MIT",
   "dependencies": {

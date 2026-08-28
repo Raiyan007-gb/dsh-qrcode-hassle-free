@@ -1,104 +1,147 @@
+<div align="center">
+
 # qrcode-hassle-free
 
-A DSH web bundle that shows a **QR code, access link, and settings** in the
-DeepSeek Harness **Settings → Plugins** page. Scan the QR with your phone
-camera and the harness opens in the phone's browser — **inside your current
-session**, same workspace and chat, no typing. The `dsh web` terminal prints
-nothing.
+<p align="center">
+  <img src="assets/logo.svg" alt="qrcode-hassle-free" width="800">
+</p>
 
-No Firebase. No database. No app install. Nothing is saved anywhere: the
-tunnel URL is random per run and the QR is generated fresh each time.
+**Open your DeepSeek Harness session on your phone — by pointing the camera at it.**
 
-Works on **Windows, macOS, and Linux** — the only runtime requirements are
-`dsh`, Node (which dsh already needs), and `cloudflared` on PATH.
+Scan the QR in **Settings → Plugins** and the harness opens in your phone's
+browser, *inside the session you are already working in*. Same workspace, same
+chat. No typing a URL. The `dsh web` terminal prints nothing.
 
-## What it does
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/Raiyan007-gb/dsh-qrcode-hassle-free)](https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free/stargazers)
+[![Release](https://img.shields.io/github/v/release/Raiyan007-gb/dsh-qrcode-hassle-free)](https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free/releases)
+[![npm](https://img.shields.io/npm/v/qrcode-hassle-free?color=%23cb0000)](https://www.npmjs.com/package/qrcode-hassle-free)
 
-On every `dsh web` start the bundle:
+</div>
 
-1. Spawns a loopback edge proxy (127.0.0.1, ephemeral port) that forwards
-  every request and WebSocket upgrade to the harness, rewriting the `Host`
-   and `Origin` headers to the loopback authority — this is what makes the
-   harness's /api browser-trust fence accept tunneled traffic (the fence
-   requires Origin == Host, and a phone browser's Origin is the tunnel
-   hostname, which `--http-host-header` rewriting alone can never satisfy;
-   without the proxy the app loads but every API call 403s and the session
-   list renders empty).
-2. Spawns `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:<proxy-port>`
-  pointed at that proxy.
-3. Waits for cloudflared to print the random `https://<name>.trycloudflare.com` URL.
-4. Resolves this process's launch token via the harness connection service
-  (`authenticatedUrl` — the same mint the console line prints).
-5. Seeds the harness's most recently active session into every served index
-  page (via the webserver's index-injection table), gated to non-loopback
-   origins and once per browser tab — so **any** tunnel entry (the QR link,
-   the handoff route, or a manually typed tunnel URL) lands inside the
-   session the desktop is working in; desktop `localhost`/`127.x` use is
-   never touched. The session id is resolved on the Host at render time
-   (cached, refreshed every 15s); the phone browser makes no `/api` call for
-   the seed itself.
-6. Registers a token-gated `/mobile-handoff` route as a fallback entry path:
-  same seeding, then continues into the normal token→cookie login. The
-   route is guarded by the same launch token as the index (SHA-256
-   constant-time compare). Prefix-matched so both `/mobile-handoff` and
-   `/mobile-handoff/` work.
-7. Registers a `mobile-handoff` settings namespace and a loopback-only bridge
-  (`/api/dsh-mobile-handoff-settings`). The browser card in **Settings →
-   Plugins → DSH Mobile** reads the tunnel status (QR matrix + access link)
-   from that bridge and draws them in the page, alongside the editable
-   `tunnelTarget` / `cloudflaredPath` / `sessionHandoff` settings. The `dsh web`
-   terminal prints nothing.
+A one-command **DeepSeek Harness web bundle** that brings QR-based remote
+handoff to the Settings page. It starts a `cloudflared` quick tunnel, loops
+your phone into the exact session the desktop is using, and draws the QR code
+plus settings right next to your other plugins — no terminal noise, no
+database, no Firebase, no app install.
 
+- **Scan to open** — a real QR code in **Settings → Plugins**, fresh every run
+- **Same session** — the phone lands inside the chat and workspace you are already in
+- **Editable settings** — tunnel target, `cloudflared` path, and session handoff from the page
+- **Nothing stored** — the tunnel URL is random per run; nothing is saved anywhere
+- **Everywhere** — Windows, macOS, and Linux
 
+## At a Glance
 
-## Install (all platforms)
+| Question | Answer |
+|----------|--------|
+| **What is it?** | A `dsh` bundle that shows a scannable QR code and access link in the Settings page, so a phone opens the harness inside the active session. |
+| **Who is it for?** | Anyone running `dsh web` who wants their phone on the same session without typing tunnel URLs and tokens. |
+| **What do I get?** | A loopback edge proxy, a `cloudflared` quick tunnel, same-session handoff, and a live QR + settings card in **Settings → Plugins**. |
+| **What does it run on?** | Windows, macOS, and Linux — anything `dsh` runs on. |
+| **Is cloud required?** | No. Only `cloudflared` on `PATH` is needed; the tunnel is public, and the token in the link is the gate. |
 
-The traditional dsh way: bundles are plain npm packages with a
-`dsh.bundle` manifest, installed into a profile with the `dsh plugin`
-CLI (which forwards to pnpm). No build step — the package ships plain ESM.
+---
+
+## Get Started
 
 Prerequisite: install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
 (`winget install Cloudflare.cloudflared` on Windows, `brew install cloudflared`
-on macOS, or the `.deb`/binary from the download page on Linux) and make sure
-`dsh web` has been run once so the profile exists.
+on macOS, or the `.deb`/binary on Linux) and run `dsh web` once so a profile
+exists.
 
-From the parent directory of the checkout (or any directory, using the git
-URL directly):
+The simplest path — install from the npm registry with the plugin name:
+
+```sh
+dsh plugin --profile web add qrcode-hassle-free
+```
+
+Or, if you prefer, install straight from the GitHub repository URL:
 
 ```sh
 dsh plugin --profile web add https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free
 ```
 
-That single command initializes the profile if needed, links the package,
-installs `qrcode-terminal`, and registers the bundle. For a local checkout
-instead:
+For a local checkout instead, clone it and add the folder:
 
 ```sh
 git clone https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free
 dsh plugin --profile web add ./dsh-qrcode-hassle-free
 ```
 
-> **Security note:** installing from a git URL asks for permission to run the
-> package's install scripts on your machine. This package has none (plain ESM,
-> no `postinstall`), but pin a commit — `#<sha>` suffix on the URL — if you
-> want to freeze what runs. The alternative is `pnpm pack` a tarball and
-> `dsh plugin add ./qrcode-hassle-free-1.0.0.tgz`, which needs no build
-> permission at all.
+These initialize the profile if needed, link the package, install
+`qrcode-terminal`, and register the bundle. No build step — the package ships
+plain ESM.
 
-Then **restart** `dsh web` — the QR and settings appear on the Settings →
-Plugins page on every start.
+> **Security note:** installing from a git URL asks for permission to run the
+> package's install scripts. This package has none (plain ESM, no
+> `postinstall`), but pin a commit — `#<sha>` on the URL — to freeze what runs.
+> To skip install permissions entirely, `pnpm pack` a tarball and
+> `dsh plugin --profile web add ./qrcode-hassle-free-1.0.0.tgz`.
+
+Then **restart** `dsh web` — the QR and settings appear on **Settings →
+Plugins → DSH Remote** on every start.
+
+---
+
+## What it does
+
+On every `dsh web` start the bundle:
+
+1. Spawns a loopback edge proxy (127.0.0.1, ephemeral port) that forwards every
+   request and WebSocket upgrade to the harness, rewriting `Host` and `Origin`
+   to the loopback authority. This is what makes the harness's `/api`
+   browser-trust fence accept tunneled traffic — the fence requires
+   `Origin == Host`, and a phone's `Origin` is the tunnel hostname, which
+   `--http-host-header` rewriting alone can never satisfy. Without the proxy
+   the app loads but every API call 403s.
+2. Spawns `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:<proxy-port>`
+   pointed at that proxy.
+3. Waits for cloudflared to print the random `https://<name>.trycloudflare.com` URL.
+4. Resolves this process's launch token via the harness connection service
+   (`authenticatedUrl` — the same mint the console line prints).
+5. Seeds the most recently active session id into every served index page (via
+   the webserver's index-injection table), gated to non-loopback origins and
+   once per tab — so any tunnel entry lands inside the session the desktop is
+   working in. The id is resolved on the Host at render time (cached, refreshed
+   every 15s); the phone makes no `/api` call for the seed itself.
+6. Registers a token-gated `/remote-handoff` route as a fallback entry path:
+   same seeding, then the normal token→cookie login (SHA-256 constant-time
+   compare). Prefix-matched, so `/remote-handoff` and `/remote-handoff/` both work.
+7. Registers a `remote-handoff` settings namespace and a loopback-only bridge
+   (`/api/dsh-remote-handoff-settings`). The card in **Settings → Plugins →
+   DSH Remote** reads the tunnel status (QR matrix + access link) from that
+   bridge and draws them in the page, alongside the editable `tunnelTarget` /
+   `cloudflaredPath` / `sessionHandoff` settings. The `dsh web` terminal prints
+   nothing.
+
+---
+
+## Requirements
+
+- `cloudflared` on `PATH`
+- Node — already present where `dsh` runs
+- Phone on any network — the tunnel is public; the token in the URL is the only
+  gate, so treat the shown link like a password.
 
 ## Removing
 
 ```sh
-dsh plugin --profile web remove dsh-qrcode-hassle-free
+dsh plugin --profile web remove qrcode-hassle-free
 ```
 
 and restart `dsh web`.
 
-## Requirements
+---
 
-- `cloudflared` on PATH
-- Phone on any network — the tunnel is public; the token in the URL is the
-only gate, so treat the shown link like a password.
+## License
 
+MIT — use it, modify it, ship it. See [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+
+*Built for the [DeepSeek Harness](https://github.com/Raiyan007-gb) — scan, open, keep working.*
+
+</div>

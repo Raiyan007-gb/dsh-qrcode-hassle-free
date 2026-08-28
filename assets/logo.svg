@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="200" viewBox="0 0 880 200" role="img" aria-label="qrcode-hassle-free">
+  <defs>
+    <linearGradient id="wc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c1229"/>
+      <stop offset="1" stop-color="#221a4e"/>
+    </linearGradient>
+    <linearGradient id="wa" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6b8cff"/>
+      <stop offset="1" stop-color="#b887ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="880" height="200" rx="26" fill="url(#wc)"/>
+  <rect x="0.5" y="0.5" width="879" height="199" rx="25.5" fill="none" stroke="#ffffff" stroke-opacity="0.09" stroke-width="1"/>
+
+  <rect x="36" y="36" width="128" height="128" rx="22" fill="#ffffff"/>
+
+  <g fill="#101c33">
+    <rect x="48" y="48" width="35" height="35" rx="4"/>
+    <rect x="53" y="53" width="25" height="25" rx="3" fill="#ffffff"/>
+    <rect x="58" y="58" width="15" height="15" rx="2"/>
+    <rect x="118" y="48" width="35" height="35" rx="4"/>
+    <rect x="123" y="53" width="25" height="25" rx="3" fill="#ffffff"/>
+    <rect x="128" y="58" width="15" height="15" rx="2"/>
+    <rect x="48" y="118" width="35" height="35" rx="4"/>
+    <rect x="53" y="123" width="25" height="25" rx="3" fill="#ffffff"/>
+    <rect x="58" y="128" width="15" height="15" rx="2"/>
+    <rect x="88" y="78" width="5" height="5"/>
+    <rect x="98" y="78" width="5" height="5"/>
+    <rect x="108" y="78" width="5" height="5"/>
+    <rect x="78" y="88" width="5" height="5"/>
+    <rect x="78" y="98" width="5" height="5"/>
+    <rect x="78" y="108" width="5" height="5"/>
+    <rect x="88" y="53" width="5" height="5" fill="#101c33"/>
+    <rect x="103" y="58" width="5" height="5" fill="#101c33"/>
+    <rect x="93" y="63" width="5" height="5" fill="#101c33"/>
+    <rect x="108" y="68" width="5" height="5" fill="#101c33"/>
+    <rect x="88" y="73" width="5" height="5" fill="#101c33"/>
+    <rect x="108" y="53" width="5" height="5" fill="#101c33"/>
+    <rect x="113" y="63" width="5" height="5" fill="#101c33"/>
+    <rect x="98" y="73" width="5" height="5" fill="#101c33"/>
+    <rect x="58" y="83" width="5" height="5" fill="#101c33"/>
+    <rect x="68" y="88" width="5" height="5" fill="#101c33"/>
+    <rect x="53" y="93" width="5" height="5" fill="#101c33"/>
+    <rect x="63" y="98" width="5" height="5" fill="#101c33"/>
+    <rect x="73" y="103" width="5" height="5" fill="#101c33"/>
+    <rect x="58" y="108" width="5" height="5" fill="#101c33"/>
+    <rect x="108" y="83" width="5" height="5" fill="#101c33"/>
+    <rect x="93" y="88" width="5" height="5" fill="#101c33"/>
+    <rect x="103" y="93" width="5" height="5" fill="#101c33"/>
+    <rect x="88" y="98" width="5" height="5" fill="#101c33"/>
+    <rect x="113" y="103" width="5" height="5" fill="#101c33"/>
+    <rect x="98" y="108" width="5" height="5" fill="#101c33"/>
+    <rect x="53" y="113" width="5" height="5" fill="#101c33"/>
+    <rect x="128" y="83" width="5" height="5" fill="#101c33"/>
+    <rect x="138" y="88" width="5" height="5" fill="#101c33"/>
+    <rect x="123" y="93" width="5" height="5" fill="#101c33"/>
+    <rect x="143" y="98" width="5" height="5" fill="#101c33"/>
+    <rect x="133" y="103" width="5" height="5" fill="#101c33"/>
+    <rect x="128" y="108" width="5" height="5" fill="#101c33"/>
+    <rect x="148" y="113" width="5" height="5" fill="#101c33"/>
+    <rect x="88" y="123" width="5" height="5" fill="#101c33"/>
+    <rect x="103" y="128" width="5" height="5" fill="#101c33"/>
+    <rect x="93" y="133" width="5" height="5" fill="#101c33"/>
+    <rect x="108" y="138" width="5" height="5" fill="#101c33"/>
+    <rect x="98" y="143" width="5" height="5" fill="#101c33"/>
+    <rect x="128" y="123" width="5" height="5" fill="#101c33"/>
+    <rect x="138" y="128" width="5" height="5" fill="#101c33"/>
+    <rect x="123" y="133" width="5" height="5" fill="#101c33"/>
+    <rect x="143" y="138" width="5" height="5" fill="#101c33"/>
+    <rect x="88" y="148" width="5" height="5" fill="#101c33"/>
+    <rect x="113" y="148" width="5" height="5" fill="#101c33"/>
+    <rect x="133" y="143" width="5" height="5" fill="#101c33"/>
+    <rect x="83" y="118" width="5" height="5" fill="#101c33"/>
+    <rect x="118" y="118" width="5" height="5" fill="#101c33"/>
+  </g>
+
+  <text x="196" y="88" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="46" font-weight="700" fill="#f6f7ff" letter-spacing="0.5">qrcode-hassle-free</text>
+  <text x="198" y="122" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="17" fill="#aeb9ff">Remote access for DeepSeek Harness &#8212; scan, open, keep working.</text>
+  <rect x="198" y="138" width="86" height="5" rx="2.5" fill="url(#wa)"/>
+</svg>

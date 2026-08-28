@@ -49,11 +49,11 @@ import { installSettingsSection, settingsNamespace, SettingsConflictError } from
 import z from '@deepseek-ai/schemastery'
 
 const TOKEN_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i
-const HANDOFF_PATH = '/mobile-handoff'
+const HANDOFF_PATH = '/remote-handoff'
 /** Settings namespace the browser card edits (Settings → Plugins → configurable). */
-const MOBILE_HANDOFF_NS = settingsNamespace('mobile-handoff')
+const REMOTE_HANDOFF_NS = settingsNamespace('remote-handoff')
 /** Loopback-only HTTP bridge the card reads config + tunnel status through. */
-const BRIDGE_PREFIX = '/api/dsh-mobile-handoff-settings'
+const BRIDGE_PREFIX = '/api/dsh-remote-handoff-settings'
 /** How often the Host re-resolves the active session for index seeding. */
 const SESSION_REFRESH_MS = 15_000
 
@@ -85,7 +85,7 @@ function apply(ctx, config) {
   // /status to draw the QR and link; nothing is ever written to the terminal.
   const status = { state: 'starting', tunnelUrl: null, accessUrl: null, matrix: null, error: null }
 
-  installSettingsSection(ctx, MOBILE_HANDOFF_NS, Config, config ?? {}, {
+  installSettingsSection(ctx, REMOTE_HANDOFF_NS, Config, config ?? {}, {
     setSource: (source) => { current = source },
     onChange: () => {},
   })
@@ -188,7 +188,7 @@ function makeBridgeRoutes(settings, getStatus) {
   const allowlisted = () =>
     settings
       .describe({ redactSecrets: true })
-      .filter((descriptor) => String(descriptor.ns) === String(MOBILE_HANDOFF_NS))
+      .filter((descriptor) => String(descriptor.ns) === String(REMOTE_HANDOFF_NS))
       .map((descriptor) => String(descriptor.ns))
 
   const handlers = {
@@ -357,8 +357,8 @@ function handoffHtml(sessionId, continueUrl) {
 /**
  * Serve the token-gated handoff over a plain webServer route (no fence, no
  * cookie requirement): the launch token in the query is the credential, the
- * same secret that guards the index. Prefix match so both /mobile-handoff
- * and /mobile-handoff/ reach the handler — the exact match refused the
+ * same secret that guards the index. Prefix match so both /remote-handoff
+ * and /remote-handoff/ reach the handler — the exact match refused the
  * trailing slash, which phones downloaded as a 404 .txt. Every scan
  * re-resolves the live active session; plain index visits never seed here
  * (the index injection covers them), so desktop use is untouched.
@@ -391,11 +391,11 @@ function registerHandoff(ctx, config) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
     res.end(handoffHtml(sessionId, continueUrl))
   }
-  // Prefix match (not exact) so both /mobile-handoff and /mobile-handoff/…
+  // Prefix match (not exact) so both /remote-handoff and /remote-handoff/…
   // reach the handler — the webserver's exact match refuses the trailing
   // slash, which phones previously downloaded as a 404 .txt. The handler
   // ignores the pathname and parses the query itself, and no other route
-  // begins with /mobile-handoff, so the wider match cannot shadow anything.
+  // begins with /remote-handoff, so the wider match cannot shadow anything.
   return ctx.effect(
     () => ctx.webServer.register({ kind: 'prefix', path: HANDOFF_PATH, handler }),
     `qrcode-hassle-free: ${HANDOFF_PATH} handoff route`,

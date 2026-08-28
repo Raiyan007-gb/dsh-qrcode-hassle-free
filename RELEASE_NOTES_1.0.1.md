@@ -1,6 +1,6 @@
 qrcode-hassle-free 1.0.1
 
-Hassle-free mobile access for DeepSeek Harness: a cloudflared quick tunnel plus
+Hassle-free remote access for DeepSeek Harness: a cloudflared quick tunnel plus
 a scannable QR code and settings, shown in the Settings > Plugins page. No
 database, no Firebase, no app install.
 
@@ -14,11 +14,11 @@ What it does
 * Resolves this process's launch token via the connection service
   (authenticatedUrl), the same mint the console line prints.
 * Seeds the most recently active session into every served index page and a
-  token-gated /mobile-handoff fallback route, so any tunnel entry — the QR
+  token-gated /remote-handoff fallback route, so any tunnel entry — the QR
   link, the handoff route, or a manually typed URL — lands inside the session
   the desktop is working in. Desktop localhost/127.x is never touched.
-* Registers a `mobile-handoff` settings namespace and a loopback-only bridge
-  (/api/dsh-mobile-handoff-settings) that the Settings card reads for tunnel
+* Registers a `remote-handoff` settings namespace and a loopback-only bridge
+  (/api/dsh-remote-handoff-settings) that the Settings card reads for tunnel
   status (QR matrix + access link) and editable tunnelTarget /
   cloudflaredPath / sessionHandoff settings. The `dsh web` terminal prints
   nothing.
@@ -26,8 +26,7 @@ What it does
 Changes in 1.0.1
 ----------------
 * Remove `private: true` so the package can be published to the npm registry.
-* Point repository.url at github.com/Raiyan007-gb/dsh-qrcode-hassle-free
-  (the repository was renamed from dsh-mobile-handoff).
+* Point repository.url at github.com/Raiyan007-gb/dsh-qrcode-hassle-free.
 
 Requirements
 ------------
