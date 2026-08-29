@@ -162,16 +162,18 @@ function apply(ctx, config) {
       const { dir, spec, kind } = resolveInstall()
       if (dir === undefined) {
         updateStatus.state = 'failed'
-        updateStatus.error = 'owning profile not found — run dsh plugin --profile web add dsh-remote-tunnel-easy to reinstall'
+        updateStatus.error = `owning profile not found — run dsh plugin --profile web add ${NEW_PACKAGE_NAME} to reinstall`
         return { ok: false, code: 'failed', message: updateStatus.error }
       }
       const latest = await fetchLatestVersion()
       updateStatus.latestVersion = latest
       updateStatus.currentVersion = currentVersion()
-      if (updateStatus.currentVersion !== undefined && !isNewer(latest, updateStatus.currentVersion)) {
+      if (updateStatus.currentVersion !== undefined && !isNewer(latest, updateStatus.currentVersion) && !RENAMED) {
         updateStatus.state = 'up-to-date'
         return { ok: true, value: { ...updateStatus } }
       }
+      // For the renamed package, even if versions look equal (1.3.0 vs 1.4.1 are different packages),
+      // an old install is always considered migratable.
       if (kind === 'local') {
         updateStatus.state = 'failed'
         updateStatus.error = `installed via "${spec}" — update that checkout, or re-add from the registry`
@@ -180,6 +182,11 @@ function apply(ctx, config) {
       updateStatus.state = 'updating'
       updateStatus.error = null
       const result = await runPnpmAdd(dir)
+      if (RENAMED) {
+        // Best-effort: remove the legacy package so the profile ends up on the new name only.
+        try { await removeLegacyPackage(dir) } catch {}
+        updateStatus.migration = true
+      }
       updateStatus.state = 'updated'
       updateStatus.requiresRestart = true
       updateStatus.output = result.output ?? null

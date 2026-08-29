@@ -169,7 +169,7 @@ If you use **dsh-remote-tunnel-easy** in your research or project, please cite:
   author = {Raiyan},
   url    = {https://github.com/Raiyan007-gb/dsh-remote-tunnel-easy},
   year   = {2026},
-  version = {1.4.1}
+  version = {1.4.2}
 }
 ```
 

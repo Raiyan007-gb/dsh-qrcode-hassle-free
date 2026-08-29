@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote-tunnel-easy",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Remote hassle-free access for DeepSeek Harness: a cloudflared quick tunnel plus a scannable QR code and settings shown in the Settings → Plugins page. Zero runtime dependencies, no database, no Firebase.",
   "type": "module",
   "main": "index.js",
