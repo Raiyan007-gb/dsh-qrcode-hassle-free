@@ -49,6 +49,10 @@ import { installSettingsSection, settingsNamespace, SettingsConflictError } from
 import z from '@deepseek-ai/schemastery'
 import { resolveCloudflared } from './lib/cloudflared.js'
 import { encodeQrMatrix } from './lib/qrcode.js'
+import {
+  locateProfileDir, dependencySpec, classifySpec, currentVersion, isNewer,
+  fetchLatestVersion, runPnpmAdd, PACKAGE_NAME,
+} from './lib/update.js'
 
 const TOKEN_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i
 const HANDOFF_PATH = '/remote-handoff'
@@ -112,6 +116,83 @@ function apply(ctx, config) {
   /** Registered regenerate handler; replaced by the tunnel effect once ready. */
   let regenerate = null
 
+  // Self-update state shared with the loopback bridge. The card polls
+  // /update-status and drives /check-update + /update. Nothing is printed here.
+  const updateStatus = {
+    state: 'idle', // idle | checking | available | up-to-date | updating | updated | failed
+    currentVersion: currentVersion(),
+    latestVersion: null,
+    output: null,
+    error: null,
+    requiresRestart: false,
+  }
+  let updateInFlight = false
+
+  /** Locate the owning profile and classify its dependency spec for this package. */
+  const resolveInstall = () => {
+    const dir = locateProfileDir()
+    const spec = dependencySpec(dir)
+    return { dir, spec, kind: classifySpec(spec) }
+  }
+
+  /** Poll the registry and compare versions; surfaces "available" / "up-to-date" / "failed". */
+  const checkUpdate = async () => {
+    if (updateInFlight) return { ok: false, code: 'busy', message: 'update already in progress' }
+    updateStatus.state = 'checking'
+    updateStatus.error = null
+    try {
+      const latest = await fetchLatestVersion()
+      updateStatus.latestVersion = latest
+      updateStatus.currentVersion = currentVersion()
+      const current = updateStatus.currentVersion
+      updateStatus.state = current !== undefined && isNewer(latest, current) ? 'available' : 'up-to-date'
+      return { ok: true, value: { ...updateStatus } }
+    } catch (err) {
+      updateStatus.state = 'failed'
+      updateStatus.error = err instanceof Error ? err.message : String(err)
+      return { ok: false, code: 'failed', message: updateStatus.error }
+    }
+  }
+
+  /** Install the newest version inside the owning profile, then report "restart required". */
+  const updateNow = async () => {
+    if (updateInFlight) return { ok: false, code: 'busy', message: 'update already in progress' }
+    updateInFlight = true
+    try {
+      const { dir, spec, kind } = resolveInstall()
+      if (dir === undefined) {
+        updateStatus.state = 'failed'
+        updateStatus.error = 'owning profile not found — run dsh plugin --profile web add qrcode-hassle-free to reinstall'
+        return { ok: false, code: 'failed', message: updateStatus.error }
+      }
+      const latest = await fetchLatestVersion()
+      updateStatus.latestVersion = latest
+      updateStatus.currentVersion = currentVersion()
+      if (updateStatus.currentVersion !== undefined && !isNewer(latest, updateStatus.currentVersion)) {
+        updateStatus.state = 'up-to-date'
+        return { ok: true, value: { ...updateStatus } }
+      }
+      if (kind === 'local') {
+        updateStatus.state = 'failed'
+        updateStatus.error = `installed via "${spec}" — update that checkout, or re-add from the registry`
+        return { ok: false, code: 'local-install', message: updateStatus.error }
+      }
+      updateStatus.state = 'updating'
+      updateStatus.error = null
+      const result = await runPnpmAdd(dir)
+      updateStatus.state = 'updated'
+      updateStatus.requiresRestart = true
+      updateStatus.output = result.output ?? null
+      return { ok: true, value: { ...updateStatus } }
+    } catch (err) {
+      updateStatus.state = 'failed'
+      updateStatus.error = err instanceof Error ? err.message : String(err)
+      return { ok: false, code: 'failed', message: updateStatus.error }
+    } finally {
+      updateInFlight = false
+    }
+  }
+
   installSettingsSection(ctx, REMOTE_HANDOFF_NS, Config, config ?? {}, {
     setSource: (source) => { current = source },
     onChange: () => {},
@@ -119,7 +200,7 @@ function apply(ctx, config) {
 
   ctx.inject(['webServer', 'settings'], (sctx) => {
     sctx.effect(() => {
-      const disposers = makeBridgeRoutes(sctx.settings, () => status, () => regenerate).map((route) => sctx.webServer.register(route))
+      const disposers = makeBridgeRoutes(sctx.settings, () => status, () => regenerate, () => ({ checkUpdate, updateNow, updateStatus })).map((route) => sctx.webServer.register(route))
       return () => { disposers.forEach((dispose) => dispose()) }
     }, 'qrcode-hassle-free: settings + status bridge')
   })
@@ -255,8 +336,8 @@ function toView(descriptor) {
   }
 }
 
-/** Build the loopback-only bridge routes (settings describe/mutate + tunnel status + regenerate). */
-function makeBridgeRoutes(settings, getStatus, getRegenerate) {
+/** Build the loopback-only bridge routes (settings describe/mutate + tunnel status + regenerate + self-update). */
+function makeBridgeRoutes(settings, getStatus, getRegenerate, getUpdate) {
   const allowlisted = () =>
     settings
       .describe({ redactSecrets: true })
@@ -324,6 +405,16 @@ function makeBridgeRoutes(settings, getStatus, getRegenerate) {
       }
       return getRegenerate()()
     },
+    async updateStatusHandler() {
+      const { updateStatus: u } = getUpdate()
+      return { ok: true, value: { ...u } }
+    },
+    async checkUpdate() {
+      return getUpdate().checkUpdate()
+    },
+    async doUpdate() {
+      return getUpdate().updateNow()
+    },
   }
 
   const guard = (req, res) => {
@@ -374,6 +465,30 @@ function makeBridgeRoutes(settings, getStatus, getRegenerate) {
       handler: async (req, res) => {
         if (!guard(req, res)) return
         writeJson(res, 200, await handlers.regenerate())
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/update-status`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        writeJson(res, 200, await handlers.updateStatusHandler())
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/check-update`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        writeJson(res, 200, await handlers.checkUpdate())
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${BRIDGE_PREFIX}/update`,
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        writeJson(res, 200, await handlers.doUpdate())
       },
     },
   ]
