@@ -19,6 +19,8 @@ chat. No typing a URL. The `dsh web` terminal prints nothing.
 
 </div>
 
+> **⚠️ Renamed from `qrcode-hassle-free`** — previously `Raiyan007-gb/dsh-qrcode-hassle-free` (npm `qrcode-hassle-free`). Now **`dsh-remote-tunnel-easy`** (`Raiyan007-gb/dsh-remote-tunnel-easy`, npm `dsh-remote-tunnel-easy@1.4.2`). If you installed the old name, [migrate](#migrating-from-qrcode-hassle-free) first — remove the old bundle, then add the new one.
+
 A one-command **DeepSeek Harness web bundle** that brings QR-based remote
 handoff to the Settings page. It starts a `cloudflared` quick tunnel, loops
 your phone into the exact session the desktop is using, and draws the QR code
@@ -142,6 +144,19 @@ On every `dsh web` start the bundle:
 - Node — already present where `dsh` runs
 - Phone on any network — the tunnel is public; the token in the URL is the only
   gate, so treat the shown link like a password.
+
+## Migrating from `qrcode-hassle-free`
+
+Previously this plugin was named **`qrcode-hassle-free`** (`Raiyan007-gb/dsh-qrcode-hassle-free` on GitHub, `qrcode-hassle-free` on npm). It is now **`dsh-remote-tunnel-easy`** (`Raiyan007-gb/dsh-remote-tunnel-easy`, `dsh-remote-tunnel-easy@1.4.2`). The old npm package is unpublished.
+
+If you installed the old name, remove it first, then add the new one and restart `dsh web`:
+
+```sh
+dsh plugin --profile web remove qrcode-hassle-free
+dsh plugin --profile web add dsh-remote-tunnel-easy@latest --config.minimumReleaseAge=0
+```
+
+Restart `dsh web` — the QR and settings now appear under **Settings → Plugins → DSH Remote** as before.
 
 ## Removing
 
