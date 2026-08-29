@@ -1,4 +1,4 @@
-# Bundle patch for qrcode-hassle-free: starts a cloudflared quick tunnel and
+# Bundle patch for dsh-remote-tunnel-easy: starts a cloudflared quick tunnel and
 # publishes its access link and QR code to the Settings → Plugins page (the
 # `dsh web` terminal prints nothing), and seeds the app's persisted session
 # selection so a phone scan lands in the harness's most recently active
@@ -6,7 +6,7 @@
 # regenerated fresh each run.
 
 - insert:
-    - id: qrcode-hassle-free
-      name: 'qrcode-hassle-free'
+    - id: dsh-remote-tunnel-easy
+      name: 'dsh-remote-tunnel-easy'
       config:
         sessionHandoff: true

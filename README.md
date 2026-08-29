@@ -1,9 +1,9 @@
 <div align="center">
 
-# qrcode-hassle-free
+# dsh-remote-tunnel-easy
 
 <p align="center">
-  <img src="assets/logo.svg" alt="qrcode-hassle-free" width="800">
+  <img src="assets/logo.svg" alt="dsh-remote-tunnel-easy" width="800">
 </p>
 
 **Open your DeepSeek Harness session on your phone — by pointing the camera at it.**
@@ -13,9 +13,9 @@ browser, *inside the session you are already working in*. Same workspace, same
 chat. No typing a URL. The `dsh web` terminal prints nothing.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/Raiyan007-gb/dsh-qrcode-hassle-free)](https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free/stargazers)
-[![Release](https://img.shields.io/github/v/release/Raiyan007-gb/dsh-qrcode-hassle-free)](https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free/releases)
-[![npm](https://img.shields.io/npm/v/qrcode-hassle-free?color=%23cb0000)](https://www.npmjs.com/package/qrcode-hassle-free)
+[![GitHub Stars](https://img.shields.io/github/stars/Raiyan007-gb/dsh-remote-tunnel-easy)](https://github.com/Raiyan007-gb/dsh-remote-tunnel-easy/stargazers)
+[![Release](https://img.shields.io/github/v/release/Raiyan007-gb/dsh-remote-tunnel-easy)](https://github.com/Raiyan007-gb/dsh-remote-tunnel-easy/releases)
+[![npm](https://img.shields.io/npm/v/dsh-remote-tunnel-easy?color=%23cb0000)](https://www.npmjs.com/package/dsh-remote-tunnel-easy)
 
 </div>
 
@@ -58,25 +58,25 @@ an explicit path disables both probing and downloading.
 The simplest path — install from the npm registry with the plugin name:
 
 ```sh
-dsh plugin --profile web add qrcode-hassle-free@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-remote-tunnel-easy@latest --config.minimumReleaseAge=0
 ```
 
 The `--config.minimumReleaseAge=0` flag bypasses pnpm's ~24-hour release-age
 gate, so a freshly published version installs immediately. Without it, a plain
-`dsh plugin --profile web add qrcode-hassle-free` still works but may hold off
+`dsh plugin --profile web add dsh-remote-tunnel-easy` still works but may hold off
 until the freshness window lapses.
 
 Or, if you prefer, install straight from the GitHub repository URL:
 
 ```sh
-dsh plugin --profile web add https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free
+dsh plugin --profile web add https://github.com/Raiyan007-gb/dsh-remote-tunnel-easy
 ```
 
 For a local checkout instead, clone it and add the folder:
 
 ```sh
-git clone https://github.com/Raiyan007-gb/dsh-qrcode-hassle-free
-dsh plugin --profile web add ./dsh-qrcode-hassle-free
+git clone https://github.com/Raiyan007-gb/dsh-remote-tunnel-easy
+dsh plugin --profile web add \./dsh-remote-tunnel-easy
 ```
 
 These initialize the profile if needed, link the package, and register the
@@ -88,7 +88,7 @@ so `add` and `remove` stay fast and never run install scripts.
 > package's install scripts. This package has none (plain ESM, no
 > `postinstall`), but pin a commit — `#<sha>` on the URL — to freeze what runs.
 > To skip install permissions entirely, `pnpm pack` a tarball and
-> `dsh plugin --profile web add ./qrcode-hassle-free-1.1.0.tgz`.
+> `dsh plugin --profile web add ./dsh-remote-tunnel-easy-1.1.0.tgz`.
 
 Then **restart** `dsh web` — the QR and settings appear on **Settings →
 Plugins → DSH Remote** on every start.
@@ -146,7 +146,7 @@ On every `dsh web` start the bundle:
 ## Removing
 
 ```sh
-dsh plugin --profile web remove qrcode-hassle-free
+dsh plugin --profile web remove dsh-remote-tunnel-easy
 ```
 
 and restart `dsh web`.

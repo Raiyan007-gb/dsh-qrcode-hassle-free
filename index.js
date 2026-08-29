@@ -1,5 +1,5 @@
 /**
- * qrcode-hassle-free node half — tunnel + Settings-page QR + same-session
+ * dsh-remote-tunnel-easy node half — tunnel + Settings-page QR + same-session
  * handoff for the DSH Web API.
  *
  * On every start this bundle:
@@ -162,7 +162,7 @@ function apply(ctx, config) {
       const { dir, spec, kind } = resolveInstall()
       if (dir === undefined) {
         updateStatus.state = 'failed'
-        updateStatus.error = 'owning profile not found — run dsh plugin --profile web add qrcode-hassle-free to reinstall'
+        updateStatus.error = 'owning profile not found — run dsh plugin --profile web add dsh-remote-tunnel-easy to reinstall'
         return { ok: false, code: 'failed', message: updateStatus.error }
       }
       const latest = await fetchLatestVersion()
@@ -202,7 +202,7 @@ function apply(ctx, config) {
     sctx.effect(() => {
       const disposers = makeBridgeRoutes(sctx.settings, () => status, () => regenerate, () => ({ checkUpdate, updateNow, updateStatus })).map((route) => sctx.webServer.register(route))
       return () => { disposers.forEach((dispose) => dispose()) }
-    }, 'qrcode-hassle-free: settings + status bridge')
+    }, 'dsh-remote-tunnel-easy: settings + status bridge')
   })
 
   ctx.effect(() => {
@@ -254,7 +254,7 @@ function apply(ctx, config) {
         status.state = 'failed'
         status.phase = null
         status.error = err instanceof Error ? err.message : String(err)
-        console.error(`qrcode-hassle-free: ${err.message}`)
+        console.error(`dsh-remote-tunnel-easy: ${err.message}`)
         return { ok: false, code: 'failed', message: status.error }
       } finally {
         inFlight = false
@@ -265,7 +265,7 @@ function apply(ctx, config) {
       status.state = 'failed'
       status.phase = null
       status.error = err instanceof Error ? err.message : String(err)
-      console.error(`qrcode-hassle-free: ${err.message}`)
+      console.error(`dsh-remote-tunnel-easy: ${err.message}`)
     })
 
     return () => {
@@ -274,7 +274,7 @@ function apply(ctx, config) {
       if (active !== null) active()
       disposers.forEach((dispose) => { dispose() })
     }
-  }, 'qrcode-hassle-free: tunnel + QR + session handoff')
+  }, 'dsh-remote-tunnel-easy: tunnel + QR + session handoff')
 }
 
 const MAX_JSON_BODY_BYTES = 64 * 1024
@@ -587,7 +587,7 @@ function registerHandoff(ctx, config) {
   // begins with /remote-handoff, so the wider match cannot shadow anything.
   return ctx.effect(
     () => ctx.webServer.register({ kind: 'prefix', path: HANDOFF_PATH, handler }),
-    `qrcode-hassle-free: ${HANDOFF_PATH} handoff route`,
+    `dsh-remote-tunnel-easy: ${HANDOFF_PATH} handoff route`,
   )
 }
 
@@ -762,7 +762,7 @@ async function startTunnel(ctx, config, status, cloudflaredBin) {
       void publish(match[0]).catch((err) => {
         status.state = 'failed'
         status.error = err instanceof Error ? err.message : String(err)
-        console.error(`qrcode-hassle-free: ${err.message}`)
+        console.error(`dsh-remote-tunnel-easy: ${err.message}`)
       })
     }
   })
@@ -787,6 +787,6 @@ async function startTunnel(ctx, config, status, cloudflaredBin) {
   }
 }
 
-export const name = 'qrcode-hassle-free'
+export const name = 'dsh-remote-tunnel-easy'
 export const inject = ['webServer', 'connection', 'sessionController']
 export { apply, startEdgeProxy, Config }
