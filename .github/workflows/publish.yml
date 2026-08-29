@@ -30,6 +30,12 @@ jobs:
           fi
 
       - name: Publish
-        run: npm publish --provenance
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          if [ "$PKG_NAME" = "qrcode-hassle-free" ]; then
+            npm publish
+          else
+            npm publish --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
