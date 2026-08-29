@@ -159,6 +159,22 @@ MIT — use it, modify it, ship it. See [LICENSE](LICENSE).
 
 ---
 
+## Citation
+
+If you use **dsh-remote-tunnel-easy** in your research or project, please cite:
+
+```bibtex
+@software{dsh_remote_tunnel_easy,
+  title  = {dsh-remote-tunnel-easy: Hassle-free remote tunnel for DeepSeek Harness},
+  author = {Raiyan},
+  url    = {https://github.com/Raiyan007-gb/dsh-remote-tunnel-easy},
+  year   = {2026},
+  version = {1.4.1}
+}
+```
+
+---
+
 <div align="center">
 
 *Built for the [DeepSeek Harness](https://github.com/Raiyan007-gb) — scan, open, keep working.*
